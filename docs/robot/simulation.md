@@ -62,7 +62,7 @@ user did not exist, so its unit never started — a class `up` cannot see at all
 ```sh
 scripts/duck-sim                # a MuJoCo window opens, the duck stands up, and it is yours
 scripts/duck-sim status         # health, and whether it is standing
-scripts/duck-sim drive          # walk forward for 8 s (args: vx vyaw, default 0.15 0)
+scripts/duck-sim drive          # walk forward for 8 s (args: vx vyaw, default 0.3 0)
 scripts/duck-sim ctl health     # anything robotctl does, aimed at this duck
 scripts/duck-sim monitor        # robotctl monitor: joints, IMU, ToF, sticks
 scripts/duck-sim log            # robotd's log
@@ -121,6 +121,10 @@ Cameras are opt-in per duck (`a`, `a,c`, or `all`) because a rendered frame cost
 with a camera gets its own `mediad`, and its console is served at `http://127.0.0.1:8080`, `8081`,
 ... by index, exactly the page a robot serves.
 
+**Cameras need Linux**, because `mediad` does: it exits on anything else, so there is no console and
+no driving from a browser on a Mac. The script says so and carries on without one — the duck, the
+policies and everything else are unaffected.
+
 ## Reaching it from anywhere
 
 A simulated duck signs in to a Hugging Face account and appears in that account's robot list, the
@@ -162,7 +166,7 @@ Environment variables, all optional:
 | `DUCK_SIM_STATE` | `~/.cache/duck-sim` | Sockets, logs, params, the rootfs and the ducks' overlays. Short on purpose: a unix socket path is capped at about 108 bytes. |
 | `DUCK_SIM_DUCKS` | `1` | How many ducks; `boot N` sets it too. |
 | `DUCK_SIM_SCENE` | bare floor | A scene name (`apartment`) or a path. |
-| `DUCK_SIM_CAMERAS` | none | Which ducks render a camera: `a`, `a,c`, `all`. |
+| `DUCK_SIM_CAMERAS` | none | Which ducks render a camera: `a`, `a,c`, `all`. Linux only — `mediad` is. |
 | `DUCK_SIM_DUCK` | `duck-a` | Which duck `ctl` and `monitor` talk to. |
 | `DUCK_SIM_KEYFRAME` | `SIT` | Where a duck starts: `SIT` folded on the floor (the standing policy rises from it), `HOME`, `STAND`, `FOLD`. |
 | `DUCK_SIM_VIEWER` | `1` | `0` runs MuJoCo headless. |
@@ -177,6 +181,12 @@ they cannot balance it. `scripts/duck-sim realtime` reports the factor, and `boo
 many ducks, or too many cameras, and the ducks do not get slow — they go *unhealthy* at the 45 Hz
 gate, and in the container form the updater starts rolling releases back. Fewer ducks, fewer
 cameras, or a headless viewer are the fixes, in that order.
+
+**A walking command below about 0.25 does not walk.** The standing threshold is 0.05, so a smaller
+command still selects the walking policy — `monitor` says `walk`, and the full command comes back as
+applied — but the policy's own output is near flat down there and the duck shuffles on the spot.
+Measured over 4 s: 0.15 moves it 6 mm, 0.25 moves it 0.32 m, 0.3 moves it 0.47 m. If a duck looks
+like it is refusing to walk, ask for more speed before suspecting the simulator.
 
 **Ducks do not hot-join.** MuJoCo compiles its model, so changing the number of ducks restarts the
 simulator. The daemons survive that: `RemoteIo` reconnects on the next tick, and a duck whose body

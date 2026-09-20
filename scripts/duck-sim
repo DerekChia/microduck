@@ -70,6 +70,17 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 say()  { printf '\033[36m==\033[0m %s\n' "$*"; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+# **A camera needs `mediad`, and `mediad` is Linux only.** It exits immediately anywhere else
+# ("mediad runs on the robot; this host is not Linux"), into its own log, where nobody is looking
+# — so asking for an eye on a Mac used to print a console URL that nothing was ever listening on,
+# and leave the simulator rendering 12 ms frames per tick for a consumer that never connects.
+# Said here and dropped, rather than fatal: the duck itself runs perfectly well on this machine,
+# and a camera is an extra somebody asked for, not the thing they came for.
+if [ -n "$CAMERAS" ] && [ "$(uname -s)" != Linux ]; then
+    say "no camera: mediad is Linux only, so there is no console on $(uname -s). Carrying on blind."
+    CAMERAS=""
+fi
+
 # Which duck `ctl` talks to. `DUCK_SIM_DUCK=duck-b scripts/duck-sim ctl monitor` for another.
 WHO="${DUCK_SIM_DUCK:-}"
 
@@ -718,10 +729,19 @@ wait_for_socket() {
 # smallest client that sends one. Resent at 10 Hz because `robotd` expires an intent 500 ms after
 # they stop arriving, which is what makes a dropped connection stop the robot rather than run it
 # into a wall.
+#
+# **0.3, because below about 0.25 the walking policy does not walk.** The standing threshold is
+# 0.05 (`duck_control::policy::DEFAULT_STANDING_THRESHOLD`), so anything above it selects the
+# walking network and `robotctl monitor` duly reports `walk` with the full command applied — but
+# the policy's own output stays near flat until roughly 0.25, and the duck shuffles in place.
+# Measured against a MuJoCo body, 4 s per run: 0.15 → 0.006 m, 0.20 → 0.008 m, 0.25 → 0.32 m,
+# 0.30 → 0.47 m, 0.40 → 0.63 m. The old default of 0.15 sat in that dead band, which made this
+# command look like a duck that would not walk and a simulator that was broken. 0.3 clears the
+# knee with margin and still walks at a watchable 0.12 m/s.
 drive() {
     [ -S "$SOCK" ] || die "no duck. \`scripts/duck-sim\` first."
     say "walking forward for 8 s"
-    python3 - "$SOCK" "${1:-0.15}" "${2:-0.0}" <<'PY'
+    python3 - "$SOCK" "${1:-0.3}" "${2:-0.0}" <<'PY'
 import json, socket, sys, time
 sock, vx, vyaw = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
 s = socket.socket(socket.AF_UNIX); s.connect(sock)
