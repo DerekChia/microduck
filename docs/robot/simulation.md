@@ -63,6 +63,7 @@ user did not exist, so its unit never started — a class `up` cannot see at all
 scripts/duck-sim                # a MuJoCo window opens, the duck stands up, and it is yours
 scripts/duck-sim status         # health, and whether it is standing
 scripts/duck-sim drive          # walk forward for 8 s (args: vx vyaw, default 0.3 0)
+scripts/duck-sim keys           # drive it from the keyboard: arrows, space, u, r, k/l, q
 scripts/duck-sim ctl health     # anything robotctl does, aimed at this duck
 scripts/duck-sim monitor        # robotctl monitor: joints, IMU, ToF, sticks
 scripts/duck-sim log            # robotd's log
@@ -187,6 +188,12 @@ command still selects the walking policy — `monitor` says `walk`, and the full
 applied — but the policy's own output is near flat down there and the duck shuffles on the spot.
 Measured over 4 s: 0.15 moves it 6 mm, 0.25 moves it 0.32 m, 0.3 moves it 0.47 m. If a duck looks
 like it is refusing to walk, ask for more speed before suspecting the simulator.
+
+**A duck outlives its body.** Closing the MuJoCo window stops the simulator, and the daemons keep
+running against a port with nothing behind it — `robotctl health` still says *healthy*, because a
+refusing bus is the same shape as a robot with no power on it, so commands are accepted and nothing
+moves. The only other evidence is `bus write failed … Connection refused` at 50 Hz in the log.
+`drive` and `keys` check for the body first and say so; everything else does not.
 
 **Ducks do not hot-join.** MuJoCo compiles its model, so changing the number of ducks restarts the
 simulator. The daemons survive that: `RemoteIo` reconnects on the next tick, and a duck whose body
