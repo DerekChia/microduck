@@ -70,17 +70,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 say()  { printf '\033[36m==\033[0m %s\n' "$*"; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-# **A camera needs `mediad`, and `mediad` is Linux only.** It exits immediately anywhere else
-# ("mediad runs on the robot; this host is not Linux"), into its own log, where nobody is looking
-# — so asking for an eye on a Mac used to print a console URL that nothing was ever listening on,
-# and leave the simulator rendering 12 ms frames per tick for a consumer that never connects.
-# Said here and dropped, rather than fatal: the duck itself runs perfectly well on this machine,
-# and a camera is an extra somebody asked for, not the thing they came for.
-if [ -n "$CAMERAS" ] && [ "$(uname -s)" != Linux ]; then
-    say "no camera: mediad is Linux only, so there is no console on $(uname -s). Carrying on blind."
-    CAMERAS=""
-fi
-
 # Which duck `ctl` talks to. `DUCK_SIM_DUCK=duck-b scripts/duck-sim ctl monitor` for another.
 WHO="${DUCK_SIM_DUCK:-}"
 
@@ -782,8 +771,8 @@ PY
 
 # The same intent, held by a person instead of a countdown.
 #
-# On a robot this is the pad or the console; here there is neither — `padd` wants a real gamepad and
-# `mediad` is Linux only — so a duck on a Mac had no way to be driven by hand at all. Roughly the
+# On a robot this is the pad or the console; here `padd` wants a real gamepad and the console
+# wants a camera — so a plain terminal had no way to drive the duck by hand at all. Roughly the
 # smallest thing that fixes that: raw-mode stdin, the 10 Hz resend `drive` already does, and the
 # same `robot.move` the console sends.
 #

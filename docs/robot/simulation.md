@@ -130,10 +130,6 @@ Cameras are opt-in per duck (`a`, `a,c`, or `all`) because a rendered frame cost
 with a camera gets its own `mediad`, and its console is served at `http://127.0.0.1:8080`, `8081`,
 ... by index, exactly the page a robot serves.
 
-**Cameras need Linux**, because `mediad` does: it exits on anything else, so there is no console and
-no driving from a browser on a Mac. The script says so and carries on without one — the duck, the
-policies and everything else are unaffected.
-
 ## Reaching it from anywhere
 
 A simulated duck signs in to a Hugging Face account and appears in that account's robot list, the
@@ -175,7 +171,7 @@ Environment variables, all optional:
 | `DUCK_SIM_STATE` | `~/.cache/duck-sim` | Sockets, logs, params, the rootfs and the ducks' overlays. Short on purpose: a unix socket path is capped at about 108 bytes. |
 | `DUCK_SIM_DUCKS` | `1` | How many ducks; `boot N` sets it too. |
 | `DUCK_SIM_SCENE` | bare floor | A scene name (`apartment`, `challenge`, `playground`) or a path. |
-| `DUCK_SIM_CAMERAS` | none | Which ducks render a camera: `a`, `a,c`, `all`. Linux only — `mediad` is. |
+| `DUCK_SIM_CAMERAS` | none | Which ducks render a camera: `a`, `a,c`, `all`. |
 | `DUCK_SIM_DUCK` | `duck-a` | Which duck `ctl` and `monitor` talk to. |
 | `DUCK_SIM_KEYFRAME` | `SIT` | Where a duck starts: `SIT` folded on the floor (the standing policy rises from it), `HOME`, `STAND`, `FOLD`. |
 | `DUCK_SIM_VIEWER` | `1` | `0` runs MuJoCo headless. |
