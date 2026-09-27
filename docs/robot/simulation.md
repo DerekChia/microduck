@@ -64,6 +64,7 @@ scripts/duck-sim                # a MuJoCo window opens, the duck stands up, and
 scripts/duck-sim status         # health, and whether it is standing
 scripts/duck-sim drive          # walk forward for 8 s (args: vx vyaw, default 0.3 0)
 scripts/duck-sim keys           # drive it from the keyboard: arrows, space, u, r, k/l, q
+scripts/duck-race               # time it round scene_challenge (needs DUCK_SIM_SCENE=challenge)
 scripts/duck-sim ctl health     # anything robotctl does, aimed at this duck
 scripts/duck-sim monitor        # robotctl monitor: joints, IMU, ToF, sticks
 scripts/duck-sim log            # robotd's log
@@ -81,6 +82,13 @@ sockets, which is the only thing that is different from a robot: on a board the 
 To talk to it from your own tools, the sockets are `~/.cache/duck-sim/duck-a.sock` (robotd; `duck.sock`
 is a link to whichever duck `ctl` talks to) and `~/.cache/duck-sim/duck-a-tof.sock`, and the body is
 on TCP port 7801.
+
+`DUCK_SIM_SCENE=challenge scripts/duck-sim` swaps the bare floor for an obstacle course — a gate,
+a slalom, a corridor, a ramp and steps, a curb, rubble, a roll wall, and a ball with a goal — and
+`scripts/duck-race` times a run round it: nine checkpoints, +3 s a fall, −5 s for going over the
+wall instead of round it, personal best in `~/.cache/duck-sim/race-best.json`. The scenes live in
+`microduck_rl` (`robot/microduck/scene_challenge.xml`, `scene_playground.xml`); the clock only reads
+the body's own position report, so it cannot affect the run it times.
 
 ## Several ducks, each a machine you log into
 
@@ -166,7 +174,7 @@ Environment variables, all optional:
 | `DUCK_SIM_RL` | `~/Pollen/microduck_rl` | Where `duck-body`, the scenes and the ONNX runtime are. |
 | `DUCK_SIM_STATE` | `~/.cache/duck-sim` | Sockets, logs, params, the rootfs and the ducks' overlays. Short on purpose: a unix socket path is capped at about 108 bytes. |
 | `DUCK_SIM_DUCKS` | `1` | How many ducks; `boot N` sets it too. |
-| `DUCK_SIM_SCENE` | bare floor | A scene name (`apartment`) or a path. |
+| `DUCK_SIM_SCENE` | bare floor | A scene name (`apartment`, `challenge`, `playground`) or a path. |
 | `DUCK_SIM_CAMERAS` | none | Which ducks render a camera: `a`, `a,c`, `all`. Linux only — `mediad` is. |
 | `DUCK_SIM_DUCK` | `duck-a` | Which duck `ctl` and `monitor` talk to. |
 | `DUCK_SIM_KEYFRAME` | `SIT` | Where a duck starts: `SIT` folded on the floor (the standing policy rises from it), `HOME`, `STAND`, `FOLD`. |
