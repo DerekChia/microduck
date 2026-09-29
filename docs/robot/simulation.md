@@ -87,8 +87,10 @@ on TCP port 7801.
 a slalom, a corridor, a ramp and steps, a curb, rubble, a roll wall, and a ball with a goal — and
 `scripts/duck-race` times a run round it: nine checkpoints, +3 s a fall, −5 s for going over the
 wall instead of round it, personal best in `~/.cache/duck-sim/race-best.json`. The scenes live in
-`microduck_rl` (`robot/microduck/scene_challenge.xml`, `scene_playground.xml`); the clock only reads
-the body's own position report, so it cannot affect the run it times.
+`microduck_rl` (`src/mjlab_microduck/robot/microduck/scene_challenge.xml`,
+`scene_playground.xml`); the clock only reads the body's own position report, so it cannot affect
+the run it times. The clock is wall-clock: if the simulator is running below real time (check with
+`scripts/duck-sim realtime`), the slowness counts against the run.
 
 ## Several ducks, each a machine you log into
 
@@ -194,10 +196,12 @@ Measured over 4 s: 0.15 moves it 6 mm, 0.25 moves it 0.32 m, 0.3 moves it 0.47 m
 like it is refusing to walk, ask for more speed before suspecting the simulator.
 
 **A duck outlives its body.** Closing the MuJoCo window stops the simulator, and the daemons keep
-running against a port with nothing behind it — `robotctl health` still says *healthy*, because a
-refusing bus is the same shape as a robot with no power on it, so commands are accepted and nothing
-moves. The only other evidence is `bus write failed … Connection refused` at 50 Hz in the log.
-`drive` and `keys` check for the body first and say so; everything else does not.
+running against a port with nothing behind it. Every failed read counts toward the update gate's
+limit (ten consecutive failures by default), so `robotctl health` first keeps answering *healthy*
+while the count climbs and then flips to *unhealthy: … consecutive bus read failures* — either way
+commands are accepted and nothing moves. The other evidence is `bus write failed … Connection
+refused` at 50 Hz in the log. `drive` and `keys` check for the body first and say so; everything
+else does not.
 
 **Ducks do not hot-join.** MuJoCo compiles its model, so changing the number of ducks restarts the
 simulator. The daemons survive that: `RemoteIo` reconnects on the next tick, and a duck whose body

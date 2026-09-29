@@ -12,6 +12,9 @@ script is doing the driving.
 
 The clock starts when the duck first crosses 0.20 m, not when this is launched, so there is no
 rush to get to the keyboard.
+
+The clock is wall-clock, not sim time: a simulator running below real time
+(`scripts/duck-sim realtime`) adds its slowness to the run.
 """
 import json
 import math
@@ -148,8 +151,8 @@ def main():
         return
     except BodyGone as why:
         print(f"\n   \033[31mthe simulator went away\033[0m ({why}) — no time recorded.\n"
-              "   Closing the MuJoCo window stops it; the daemons keep running with nothing to\n"
-              "   drive. Start it again with:\n\n"
+              "   (Closing the MuJoCo window stops it; see \"A duck outlives its body\" in\n"
+              "   docs/robot/simulation.md.) Start it again with:\n\n"
               "     scripts/duck-sim down && DUCK_SIM_SCENE=challenge scripts/duck-sim\n")
         return
 

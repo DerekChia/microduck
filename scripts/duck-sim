@@ -715,12 +715,12 @@ wait_for_socket() {
     return 1
 }
 
-# **A duck can outlive its body, and nothing above notices.** Closing the MuJoCo window stops the
-# simulator — the body server exits with the viewer, by design and without a word — while `robotd`
-# and `tofd` carry on, reconnecting to a port with nothing behind it. That state answers `health`
-# as *healthy* (the loop is turning, and a bus that is merely refusing is the same shape as a robot
-# with no power on the bus), so every drive command is accepted and does nothing at all. The only
-# evidence is `bus write failed … Connection refused` at 50 Hz in a log nobody has open.
+# **A duck can outlive its body.** Closing the MuJoCo window stops the simulator — the body
+# server exits with the viewer, by design and without a word — while `robotd` and `tofd` carry
+# on against a port with nothing behind it. Each failed read counts toward the update gate's
+# limit (ten consecutive failures by default), at which point `health` answers *unhealthy*;
+# until then every drive command is accepted and does nothing at all. Full version in
+# `docs/robot/simulation.md`.
 #
 # So anything that means to move the duck asks first, and says this rather than nothing.
 body_up() {
@@ -743,14 +743,10 @@ require_body() {
 # they stop arriving, which is what makes a dropped connection stop the robot rather than run it
 # into a wall.
 #
-# **0.3, because below about 0.25 the walking policy does not walk.** The standing threshold is
-# 0.05 (`duck_control::policy::DEFAULT_STANDING_THRESHOLD`), so anything above it selects the
-# walking network and `robotctl monitor` duly reports `walk` with the full command applied — but
-# the policy's own output stays near flat until roughly 0.25, and the duck shuffles in place.
-# Measured against a MuJoCo body, 4 s per run: 0.15 → 0.006 m, 0.20 → 0.008 m, 0.25 → 0.32 m,
-# 0.30 → 0.47 m, 0.40 → 0.63 m. The old default of 0.15 sat in that dead band, which made this
-# command look like a duck that would not walk and a simulator that was broken. 0.3 clears the
-# knee with margin and still walks at a watchable 0.12 m/s.
+# **0.3, because below about 0.25 the walking policy does not walk.** The standing threshold
+# is 0.05, so anything above it selects the walking network while the policy's own output stays
+# near flat — the duck shuffles in place and looks broken. 0.3 clears the knee with margin and
+# still walks at a watchable 0.12 m/s. Measurements in `docs/robot/simulation.md`.
 drive() {
     [ -S "$SOCK" ] || die "no duck. \`scripts/duck-sim\` first."
     require_body
@@ -777,8 +773,8 @@ PY
 # same `robot.move` the console sends.
 #
 # The step is the walking floor rather than something finer, because a first keypress that produces
-# a duck shuffling on the spot is the confusion this branch exists to remove — see `drive` above for
-# the measurements.
+# a duck shuffling on the spot is the confusion this branch exists to remove — measurements in
+# `docs/robot/simulation.md`.
 keys() {
     [ -S "$SOCK" ] || die "no duck. \`scripts/duck-sim\` first."
     [ -t 0 ] || die "keys needs a terminal — it reads the keyboard directly."
@@ -786,10 +782,10 @@ keys() {
     python3 - "$SOCK" <<'PY'
 import json, os, select, socket, sys, termios, tty
 
-# Both floors are measured, and both are higher than they look like they should be. Forward: see
-# `drive` above. Yaw has the same shape and a much higher knee — 4 s per run, 0.6 turns the duck
-# 4 degrees and 1.0 turns it 7, which is a duck standing still; 1.5 turns it 168. So one press of
-# an arrow is a real turn or it is nothing, and there is no useful value in between to offer.
+# Forward is the walking floor (measurements in `docs/robot/simulation.md`). Yaw has the same
+# shape and a much higher knee — 4 s per run, 0.6 turns the duck 4 degrees and 1.0 turns it 7,
+# which is a duck standing still; 1.5 turns it 168. So one press of an arrow is a real turn or
+# it is nothing, and there is no useful value in between to offer.
 STEP, TURN, CAP = 0.3, 1.5, 0.6
 DEBUG = bool(os.environ.get("DUCK_SIM_KEYS_DEBUG"))
 HELP = ("arrows drive · space stop · u up · r roulade · k/l kick · q quit")
@@ -850,6 +846,33 @@ def send(method, params):
     f.write(json.dumps({"jsonrpc": "2.0", "method": method, "params": params}) + "\n")
     f.flush()
 
+
+def call(method, params):
+    """One discrete call, answered. `robot.enable` and `robot.do` are request methods
+    (`duck-ipc-proto`): a notification would swallow a refusal — a skill already running,
+    say — and the key would seem to do nothing. A fresh connection each, so the answer
+    cannot land in the middle of the 10 Hz `robot.move` stream above."""
+    try:
+        c = socket.socket(socket.AF_UNIX); c.settimeout(3); c.connect(sock)
+        g = c.makefile("rw")
+        g.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": method,
+                            "params": params}) + "\n")
+        g.flush()
+        answer = json.loads(g.readline() or "{}")
+    except (OSError, ValueError) as error:
+        print(f"\r{method} failed: {error}", flush=True)
+        return
+    finally:
+        try:
+            c.close()
+        except (NameError, OSError):
+            pass
+    # Quiet when it works — the status line already says what the duck is doing — and
+    # loud when it does not, which is the whole point of asking instead of telling.
+    result = answer.get("result", {})
+    if not result.get("accepted"):
+        print(f"\r{method} refused: {result.get('reason', answer)}", flush=True)
+
 vx = vyaw = 0.0
 old = termios.tcgetattr(kb)
 print(HELP)
@@ -862,8 +885,9 @@ try:
         if select.select([kb], [], [], 0.1)[0]:
             key = arrow(kb.fileno())
             # `DUCK_SIM_KEYS_DEBUG=1` answers the only question worth asking when a key does
-            # nothing: did the terminal send what this thinks it did. Nothing else here can — an
-            # intent is a notification, and `robotd` does not log one per tick at 10 Hz.
+            # nothing: did the terminal send what this thinks it did. Nothing else here can for
+            # arrows and space — a move intent is a notification, and `robotd` does not log one
+            # per tick at 10 Hz. (`u`, `r`, `k`, `l` answer for themselves now.)
             if DEBUG and key:
                 print(f"\rkey {key!r}", flush=True)
             if key in ("q", "\x03"):
@@ -881,12 +905,16 @@ try:
             # ends the session — and on an obstacle course toppling is the whole point.
             elif key == "u":
                 vx = vyaw = 0.0
-                send("robot.enable", {"on": True})
+                call("robot.enable", {"on": True})
             elif key in ("r", "k", "l"):
-                send("robot.do", {"skill": {"r": "roulade", "k": "kick_left",
+                call("robot.do", {"skill": {"r": "roulade", "k": "kick_left",
                                             "l": "kick_right"}[key]})
             print(f"\rvx {vx:+.2f}  vyaw {vyaw:+.2f}   ", end="", flush=True)
         send("robot.move", {"vx": vx, "vy": 0.0, "vyaw": vyaw})
+except KeyboardInterrupt:
+    # Ctrl-C arrives here, not in the loop: under `setcbreak` ISIG stays on, so the
+    # `"\x03"` branch below never sees it — without this the quit prints a traceback.
+    pass
 finally:
     # Both halves matter: a terminal left in cbreak echoes nothing at the next prompt, and a duck
     # left with an intent walks until the deadman catches it half a second later.
